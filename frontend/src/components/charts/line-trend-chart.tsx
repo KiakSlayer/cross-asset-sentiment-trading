@@ -15,17 +15,41 @@ interface TrendPoint {
   value: number;
 }
 
+type FormatMode = "currency" | "percent" | "number";
+
+function formatValue(value: number, mode: FormatMode): string {
+  if (mode === "currency") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+
+  if (mode === "percent") {
+    return `${value.toFixed(2)}%`;
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 export function LineTrendChart({
   data,
   color = "#0284c7",
-  valueFormatter,
+  formatMode = "number",
 }: {
   data: TrendPoint[];
   color?: string;
-  valueFormatter?: (value: number) => string;
+  formatMode?: FormatMode;
 }) {
+  if (typeof window === "undefined") {
+    return <div className="h-64 w-full rounded-lg bg-slate-100" />;
+  }
+
   return (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-w-0">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
@@ -33,14 +57,13 @@ export function LineTrendChart({
           <YAxis
             stroke="#64748b"
             fontSize={12}
-            tickFormatter={(value) =>
-              valueFormatter ? valueFormatter(Number(value)) : String(value)
-            }
+            tickFormatter={(value) => formatValue(Number(value), formatMode)}
           />
           <Tooltip
-            formatter={(value: number) =>
-              valueFormatter ? valueFormatter(Number(value)) : value.toString()
-            }
+            formatter={(value) => {
+              const numericValue = typeof value === "number" ? value : Number(value ?? 0);
+              return formatValue(numericValue, formatMode);
+            }}
           />
           <Line
             type="monotone"

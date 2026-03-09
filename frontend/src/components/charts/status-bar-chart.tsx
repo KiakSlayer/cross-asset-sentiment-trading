@@ -22,8 +22,12 @@ export function StatusBarChart({
   data: StatusPoint[];
   color?: string;
 }) {
+  if (typeof window === "undefined") {
+    return <div className="h-64 w-full rounded-lg bg-slate-100" />;
+  }
+
   return (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-w-0">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />

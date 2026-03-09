@@ -9,10 +9,12 @@ export interface TableColumn<T> {
 export function DataTable<T>({
   rows,
   columns,
+  getRowKey,
   emptyMessage,
 }: {
   rows: T[];
   columns: TableColumn<T>[];
+  getRowKey: (row: T) => string;
   emptyMessage: string;
 }) {
   if (!rows.length) {
@@ -39,8 +41,8 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {rows.map((row, index) => (
-            <tr key={index} className="hover:bg-slate-50">
+          {rows.map((row) => (
+            <tr key={getRowKey(row)} className="hover:bg-slate-50">
               {columns.map((column) => (
                 <td key={column.key} className="px-3 py-3 text-sm text-slate-700">
                   {column.render(row)}
