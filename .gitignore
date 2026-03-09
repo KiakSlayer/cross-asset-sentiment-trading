@@ -8,3 +8,7 @@ __pycache__/
 *.log
 *.env
 phase1_output/
+
+# Editor / notebook artifacts
+.vscode/
+.ipynb_checkpoints/
