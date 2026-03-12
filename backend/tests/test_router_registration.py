@@ -6,16 +6,22 @@ def test_required_v1_routes_registered() -> None:
 
     expected_prefixes = [
         "/api/v1/auth",
+        "/api/v1/users",
         "/api/v1/strategies",
-        "/api/v1/backtesting",
-        "/api/v1/forward-testing",
+        "/api/v1/historical-ingestion",
+        "/api/v1/sentiment-events",
+        "/api/v1/sector-relevance",
         "/api/v1/signals",
         "/api/v1/signal-validation",
-        "/api/v1/sentiment-events",
-        "/api/v1/asset-relationships",
+        "/api/v1/backtesting",
+        "/api/v1/forward-testing",
         "/api/v1/opportunities",
+        "/api/v1/portfolios",
+        "/api/v1/trades-positions",
+        "/api/v1/asset-relationships",
         "/api/v1/bot-control",
         "/api/v1/model-degradation",
+        "/api/v1/system-health",
     ]
 
     for prefix in expected_prefixes:

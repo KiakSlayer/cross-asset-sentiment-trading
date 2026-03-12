@@ -22,22 +22,22 @@ const columns: TableColumn<PortfolioPosition>[] = [
   },
   {
     key: "entry",
-    header: "Avg Entry",
+    header: "Avg entry",
     render: (row) => formatCurrency(row.averageEntryPrice),
   },
   {
     key: "price",
-    header: "Current Price",
+    header: "Current price",
     render: (row) => formatCurrency(row.currentPrice),
   },
   {
     key: "pnl",
-    header: "Unrealized P/L",
+    header: "Today's change",
     render: (row) => formatCurrency(row.unrealizedPnl),
   },
   {
     key: "risk",
-    header: "Risk Label",
+    header: "Risk Level",
     render: (row) => {
       const risk = buildRiskLabelDisplay(row);
       if (!risk.label) {
@@ -56,13 +56,13 @@ export default function PortfolioPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Portfolio"
-        description="Portfolio view with beginner-friendly risk labels and auditable suppression when evidence is missing."
+        title="Your portfolio"
+        description="Simple portfolio view with clear risk labels and suppression when audit evidence is missing."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Total equity"
+          label="Total value"
           value={formatCurrency(portfolioSnapshot.currentEquity)}
           caption="Current account value"
         />
@@ -72,7 +72,7 @@ export default function PortfolioPage() {
           caption="Funds available for new trades"
         />
         <MetricCard
-          label="Daily P/L"
+          label="Today's change"
           value={formatCurrency(portfolioSnapshot.dailyPnl)}
           caption="Change since previous day"
         />
@@ -84,7 +84,7 @@ export default function PortfolioPage() {
       </div>
 
       <SectionCard
-        title="Open positions"
+        title="Portfolio summary"
         description="Risk labels are only shown when an auditable basis exists."
       >
         <DataTable
@@ -96,18 +96,17 @@ export default function PortfolioPage() {
       </SectionCard>
 
       <RecommendationCard
-        title="Portfolio recommendation"
+        title="Portfolio guidance"
         recommendation={{
           observed:
-            "Most holdings remain within configured position size limits, with one defensive asset missing risk audit metadata.",
+            "Most holdings remain within position-size limits, with one asset missing risk audit metadata.",
           inferred:
-            "Portfolio exposure is generally controlled, but unlabeled risk items should be reviewed before scale-up.",
+            "Overall exposure is controlled, but missing risk evidence should be fixed before scaling up.",
           uncertainty:
-            "Risk behavior can change if volatility rises quickly across assets.",
+            "Risk behavior can change quickly if market volatility rises.",
         }}
-        note="Risk labels without audit basis are intentionally hidden from the user interface."
+        note="Review missing audit evidence before increasing allocation."
       />
     </div>
   );
 }
-

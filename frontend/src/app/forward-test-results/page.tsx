@@ -16,22 +16,22 @@ const columns: TableColumn<ForwardTestSummary>[] = [
   },
   {
     key: "run",
-    header: "Run Status",
+    header: "Run status",
     render: (row) => <StatusBadge status={row.runStatus} />,
   },
   {
     key: "pass",
-    header: "Pass Gate",
+    header: "Pass gate",
     render: (row) => <StatusBadge status={row.passStatus} />,
   },
   {
     key: "return",
-    header: "Observed Return",
+    header: "Observed return",
     render: (row) => formatPct(row.observedReturnPct),
   },
   {
     key: "drawdown",
-    header: "Observed Drawdown",
+    header: "Largest drop seen",
     render: (row) => formatPct(row.observedMaxDrawdownPct),
   },
   {
@@ -52,35 +52,35 @@ export default function ForwardTestResultsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Forward Test Results"
-        description="Forward testing is a separate validation layer and must pass before autonomous trading can be enabled."
+        title="Forward test results"
+        description="This live-like trial checks whether the strategy still behaves safely before autonomous mode can be enabled."
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <RecommendationCard
-            title="Forward test interpretation"
+            title="What this suggests"
             recommendation={{
-              observed: `Most recent completed trial run returned ${formatPct(latest.observedReturnPct)} with ${formatPct(latest.observedMaxDrawdownPct)} drawdown.`,
+              observed: `Most recent completed trial run returned ${formatPct(latest.observedReturnPct)} with a largest drop of ${formatPct(latest.observedMaxDrawdownPct)}.`,
               inferred:
                 latest.passStatus === "passed"
                   ? "The strategy is currently eligible for autonomous activation checks."
-                  : "The strategy should remain in paper mode until pass status is achieved.",
+                  : "The strategy should stay in paper mode until this trial is marked as passed.",
               uncertainty:
-                "Future market regimes can change quickly, so this gate is continuously re-checked.",
+                "Market conditions can change quickly, so this gate is continuously re-checked.",
             }}
             note={latest.decisionReason}
           />
         </div>
         <ExplainerCard
-          title="Why a separate trial?"
-          body="Forward testing checks if historical behavior still holds in fresh market data before real automation is allowed."
+          title="Why this matters"
+          body="Forward testing confirms that recent market behavior still supports the strategy before any autonomous action."
         />
       </div>
 
       <SectionCard
         title="Forward test log"
-        description="Every run includes a clear pass gate and decision reason."
+        description="Every run includes a pass gate and a clear decision reason."
       >
         <DataTable
           rows={forwardTestRuns}
@@ -92,4 +92,3 @@ export default function ForwardTestResultsPage() {
     </div>
   );
 }
-

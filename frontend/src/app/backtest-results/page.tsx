@@ -17,27 +17,27 @@ const columns: TableColumn<BacktestSummary>[] = [
   },
   {
     key: "status",
-    header: "Run Status",
+    header: "Run status",
     render: (row) => <StatusBadge status={row.runStatus} />,
   },
   {
     key: "validation",
-    header: "Validation",
+    header: "Check status",
     render: (row) => <StatusBadge status={row.validationStatus} />,
   },
   {
     key: "return",
-    header: "Total Return",
+    header: "Total return",
     render: (row) => formatPct(row.totalReturnPct),
   },
   {
     key: "drawdown",
-    header: "Max Drawdown",
+    header: "Largest drop",
     render: (row) => formatPct(row.maxDrawdownPct),
   },
   {
     key: "window",
-    header: "Walk-Forward Windows",
+    header: "Test windows",
     render: (row) => row.walkForwardWindows,
   },
   {
@@ -58,49 +58,47 @@ export default function BacktestResultsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Backtest Results"
-        description="Historical checks use walk-forward validation only, so each result comes from rolling train/test windows."
+        title="Strategy test results"
+        description="Historical strategy tests use rolling windows to check consistency before moving to forward testing."
       />
 
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <SectionCard
-            title="Return by backtest run"
-            description="Quick view of how each walk-forward run performed."
+            title="Performance by test run"
+            description="Simple view of how each historical test performed."
           >
             <LineTrendChart data={chartData} formatMode="percent" />
           </SectionCard>
         </div>
         <ExplainerCard
-          title="Historical check note"
-          body="A strong backtest does not unlock autonomous mode. It only allows the strategy to move into forward testing."
+          title="Why this matters"
+          body="A good historical test is helpful, but autonomous mode still stays locked until forward testing passes."
         />
       </div>
 
       {latestPassed ? (
         <RecommendationCard
-          title="Backtest interpretation"
+          title="What this suggests"
           recommendation={{
-            observed: `Latest passed run returned ${formatPct(latestPassed.totalReturnPct)} with max drawdown ${formatPct(latestPassed.maxDrawdownPct)}.`,
+            observed: `Latest passed run returned ${formatPct(latestPassed.totalReturnPct)} with a largest drop of ${formatPct(latestPassed.maxDrawdownPct)}.`,
             inferred:
-              "Historical behavior is stable enough to continue paper forward testing.",
+              "Historical behavior looks stable enough to continue paper forward testing.",
             uncertainty:
-              "Live market behavior can differ, so the strategy remains in trial mode.",
+              "Real market behavior can differ, so this is not a guarantee of future results.",
           }}
-          note="Recommendation text is beginner-oriented and mock-data based."
+          note="Continue forward testing before enabling autonomous mode."
         />
       ) : null}
 
-      <SectionCard title="Backtest run log" description="Detailed status of each historical validation run.">
+      <SectionCard title="Test run log" description="Detailed status of each historical strategy test.">
         <DataTable
           rows={backtestRuns}
           getRowKey={(row) => row.id}
           columns={columns}
-          emptyMessage="No backtest runs are available yet."
+          emptyMessage="No strategy test runs are available yet."
         />
       </SectionCard>
     </div>
   );
 }
-
-

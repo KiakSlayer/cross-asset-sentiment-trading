@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { RecommendationCard } from "@/components/ui/recommendation-card";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDateTime, formatPct } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import {
   buildConfidenceDisplay,
   buildRecommendationExplanation,
@@ -21,18 +21,18 @@ const columns: TableColumn<OpportunitySignal>[] = [
     render: (row) => <span className="font-semibold text-slate-900">{row.assetSymbol}</span>,
   },
   {
-    key: "ic",
-    header: "Signal Quality (IC)",
-    render: (row) => `${row.informationCoefficient.toFixed(2)} (min ${row.icThreshold.toFixed(2)})`,
+    key: "quality",
+    header: "Signal quality score",
+    render: (row) => `${row.informationCoefficient.toFixed(2)} (minimum ${row.icThreshold.toFixed(2)})`,
   },
   {
     key: "validation",
-    header: "Validation",
+    header: "Check status",
     render: (row) => <StatusBadge status={row.validationStatus} />,
   },
   {
     key: "confidence",
-    header: "Confidence Note",
+    header: "Confidence",
     render: (row) => {
       const confidence = buildConfidenceDisplay(row);
       return confidence.label
@@ -54,54 +54,54 @@ export default function OpportunitiesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Opportunities"
-        description="This feed only shows signals that passed validation and cleared the configured quality threshold."
+        description="This feed only shows signals that passed required checks and cleared the configured quality threshold."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Signals scanned"
           value={String(opportunitySignals.length)}
-          caption="All incoming signals before feed filtering"
+          caption="All incoming signals before filtering"
         />
         <MetricCard
           label="Feed eligible"
           value={String(eligible.length)}
-          caption="Only passed + quality threshold signals"
+          caption="Only passed signals above quality threshold"
         />
         <MetricCard
-          label="IC threshold"
-          value={formatPct(OPPORTUNITY_IC_THRESHOLD * 100)}
-          caption="Configured minimum quality score"
+          label="Quality threshold"
+          value={OPPORTUNITY_IC_THRESHOLD.toFixed(2)}
+          caption="Configured minimum score"
         />
         <MetricCard
           label="Suppressed labels"
           value={String(
             eligible.filter((signal) => !buildConfidenceDisplay(signal).label).length,
           )}
-          caption="Hidden due to missing audit evidence"
+          caption="Hidden when audit evidence is missing"
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <SectionCard title="Eligible opportunity feed" description="Filtered output with auditable notes.">
+          <SectionCard title="Eligible opportunities" description="Filtered output with auditable notes.">
             <DataTable
               rows={eligible}
               getRowKey={(row) => row.id}
               columns={columns}
-              emptyMessage="No signals have passed validation and quality thresholds yet."
+              emptyMessage="No opportunities are ready right now."
             />
           </SectionCard>
         </div>
         <ExplainerCard
-          title="Feed guardrails"
-          body="A signal appears here only if validation status is passed and IC is above the configured threshold. Confidence and recommendation notes are hidden when audit evidence is missing."
+          title="Why this matters"
+          body="An item appears here only if required checks pass and quality stays above the configured threshold. Confidence and suggestions are hidden when audit evidence is missing."
         />
       </div>
 
       <SectionCard
-        title="Recommendation details"
-        description="Each visible recommendation explains what was observed, inferred, and uncertain."
+        title="Opportunity cards"
+        description="Each card explains what happened and why it matters in plain language."
       >
         <div className="grid gap-4 lg:grid-cols-2">
           {eligible.map((signal) => {
@@ -117,7 +117,7 @@ export default function OpportunitiesPage() {
                     <StatusBadge status="suppressed" />
                   </div>
                   <p className="text-sm text-slate-700">
-                    Recommendation hidden because auditable evidence is missing.
+                    Suggested action is hidden because auditable evidence is incomplete.
                   </p>
                 </article>
               );
@@ -126,9 +126,9 @@ export default function OpportunitiesPage() {
             return (
               <RecommendationCard
                 key={signal.id}
-                title={`${signal.assetSymbol} recommendation`}
+                title={`${signal.assetSymbol} opportunity`}
                 recommendation={recommendation}
-                note={signal.recommendationText ?? "No additional text provided."}
+                note={signal.recommendationText ?? "Wait for clearer confirmation."}
               />
             );
           })}
@@ -137,4 +137,3 @@ export default function OpportunitiesPage() {
     </div>
   );
 }
-

@@ -14,19 +14,23 @@ export function RecommendationCard({
       <h4 className="text-base font-bold text-slate-900">{title}</h4>
       <div className="mt-3 space-y-2 text-sm text-slate-700">
         <p>
-          <span className="font-semibold text-slate-900">What was observed:</span>{" "}
+          <span className="font-semibold text-slate-900">What happened:</span>{" "}
           {recommendation.observed}
         </p>
         <p>
-          <span className="font-semibold text-slate-900">What was inferred:</span>{" "}
+          <span className="font-semibold text-slate-900">Why this matters:</span>{" "}
           {recommendation.inferred}
         </p>
         <p>
-          <span className="font-semibold text-slate-900">What the uncertainty is:</span>{" "}
+          <span className="font-semibold text-slate-900">Uncertainty:</span>{" "}
           {recommendation.uncertainty}
         </p>
       </div>
-      {note ? <p className="mt-3 text-xs text-slate-600">{note}</p> : null}
+      {note ? (
+        <p className="mt-3 text-xs text-slate-600">
+          <span className="font-semibold text-slate-700">Suggested Action:</span> {note}
+        </p>
+      ) : null}
     </article>
   );
 }

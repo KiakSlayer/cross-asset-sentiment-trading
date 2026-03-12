@@ -1,36 +1,53 @@
 ﻿# Backend Scaffold
 
-This folder now contains a merged backend scaffold for the **Cross-Asset Sentiment-Driven Systematic Trading Platform**.
+This folder contains a production-style backend scaffold for the **Cross-Asset Sentiment-Driven Trading Platform**.
 
-## What exists now
+## Layered structure
 
-- Existing PostgreSQL schema assets (preserved):
-  - `app/db/base.py`
-  - `app/db/enums.py`
-  - `app/db/models.py`
-  - `migrations/versions/20260309_0001_initial_schema.sql`
-- New FastAPI application scaffold:
-  - `app/main.py`
-  - `app/core/`
-  - `app/api/v1/`
-  - `app/schemas/`
-  - `app/services/`
-  - `app/repositories/`
-  - `app/db/session.py`
-  - `tests/`
+- `app/api/v1/endpoints/`: route handlers grouped by domain
+- `app/services/`: business-domain service stubs
+- `app/schemas/`: request/response and contract models
+- `app/repositories/`: persistence boundary stubs
+- `app/models/`: domain model placeholders
+- `app/db/`: SQLAlchemy base/session and existing schema models
+- `app/core/`: config, security, logging, and exceptions
+- `app/utils/`: cross-cutting utility helpers
 
-## Guardrails reflected in contracts
+## Supported backend modules
 
-- Opportunity feed contract requires:
-  - `validation_status == passed`
-  - `information_coefficient >= IC_THRESHOLD`
-- Bot activation contract requires:
-  - forward test status passed for autonomous mode
-  - risk controls configured for autonomous mode
-- Confidence/recommendation/risk-producing service methods include explicit docstrings for:
-  - how score/label is computed
-  - historical validation support
-  - suppression conditions
+- authentication
+- users and profiles
+- strategies
+- historical data ingestion
+- sentiment events
+- sector relevance and propagation
+- signals
+- signal validation
+- backtesting
+- forward testing
+- opportunities
+- portfolios
+- trades and positions
+- bot control
+- model degradation monitoring
+- system health and logging
+
+## Architectural guardrails already scaffolded
+
+- Signals domain includes `validation_status` and `information_coefficient` fields (`app/schemas/signal.py`).
+- Forward-test gating hooks exist for autonomous eligibility (`app/schemas/bot_control.py`, `app/services/bot_control_service.py`, `app/models/strategy.py`).
+- Model degradation interfaces exist before autonomous bot completion (`app/services/model_degradation_service.py`, `app/schemas/model_degradation.py`).
+- Audit location for user-facing confidence/risk/recommendation behavior is easy to find in:
+  - `app/services/signal_service.py`
+  - `app/services/opportunity_feed_service.py`
+  - `app/services/bot_control_service.py`
+  - `app/utils/confidence_audit.py`
+
+## Existing preserved assets
+
+- `app/db/models.py`
+- `app/db/enums.py`
+- `migrations/versions/20260309_0001_initial_schema.sql`
 
 ## Quick start
 
@@ -44,5 +61,5 @@ uvicorn app.main:app --reload
 
 ## Notes
 
-- This scaffold is intentionally boilerplate-only; business logic is not implemented yet.
-- Existing quant research pipeline files outside `backend/` are unchanged.
+- This scaffold intentionally excludes business logic implementation.
+- Existing non-backend quant modules remain untouched.
