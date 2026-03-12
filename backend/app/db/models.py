@@ -2,9 +2,8 @@ from __future__ import annotations
 
 """Relational models for the Cross-Asset Sentiment-Driven trading platform.
 
-This module includes explicit audit fields for user-facing confidence scores,
-recommendation text, and risk labels so those outputs can be traced back to
-historical validation evidence and suppression conditions.
+This schema is designed to preserve auditability for user-facing outputs, with
+explicit fields for confidence, validation evidence, and suppression reasons.
 """
 
 import uuid
@@ -29,13 +28,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
 from .enums import (
+    AuditAction,
     BotActivationStatus,
     DegradationStatus,
     EligibilityStatus,
+    OpportunityStatus,
     PositionStatus,
     RegimeType,
     RiskLevel,
     RunStatus,
+    TextSourceType,
     TradeSide,
     TradeStatus,
     ValidationStatus,
@@ -144,6 +146,145 @@ class Strategy(TimestampMixin, Base):
     )
 
 
+class MarketDataRecord(TimestampMixin, Base):
+    __tablename__ = "market_data_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    market_timestamp: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
+    open_price: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    high_price: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    low_price: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    close_price: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    volume: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
+    data_source: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "asset_symbol",
+            "timeframe",
+            "market_timestamp",
+            "data_source",
+            name="uq_market_data_records_symbol_timeframe_ts_source",
+        ),
+        CheckConstraint("high_price >= low_price", name="market_data_hl_order"),
+        Index("ix_market_data_records_symbol_ts", "asset_symbol", "market_timestamp"),
+    )
+
+
+class TextEvent(TimestampMixin, Base):
+    __tablename__ = "text_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_type: Mapped[TextSourceType] = mapped_column(
+        SAEnum(TextSourceType, name="text_source_type"), nullable=False
+    )
+    external_event_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    published_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    language: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_author: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    event_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("source_type", "external_event_id", name="uq_text_events_source_external_id"),
+        Index("ix_text_events_source_published", "source_type", "published_at"),
+    )
+
+
+class SentimentEvent(TimestampMixin, Base):
+    __tablename__ = "sentiment_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    text_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("text_events.id", ondelete="SET NULL"), nullable=True
+    )
+    target_asset: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    target_sector: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_time: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
+    raw_sentiment_score: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
+    normalized_sentiment_score: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
+    event_confidence_score: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    event_information_coefficient: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    validation_status: Mapped[ValidationStatus] = mapped_column(
+        SAEnum(ValidationStatus, name="validation_status"), nullable=False
+    )
+    regime_context: Mapped[RegimeType] = mapped_column(SAEnum(RegimeType, name="regime_type"), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "target_asset IS NOT NULL OR target_sector IS NOT NULL",
+            name="sentiment_event_target_required",
+        ),
+        CheckConstraint(
+            "raw_sentiment_score >= -1 AND raw_sentiment_score <= 1",
+            name="sentiment_raw_bounds",
+        ),
+        CheckConstraint(
+            "normalized_sentiment_score >= -1 AND normalized_sentiment_score <= 1",
+            name="sentiment_norm_bounds",
+        ),
+        CheckConstraint(
+            "event_confidence_score IS NULL OR (event_confidence_score >= 0 AND event_confidence_score <= 1)",
+            name="sentiment_confidence_bounds",
+        ),
+        Index("ix_sentiment_events_target_time", "target_asset", "target_sector", "event_time"),
+    )
+
+
+class SectorRelevanceScore(TimestampMixin, Base):
+    __tablename__ = "sector_relevance_scores"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    text_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("text_events.id", ondelete="CASCADE"), nullable=False
+    )
+    sector_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    relevance_score: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
+    scoring_method: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "text_event_id",
+            "sector_code",
+            "model_version",
+            name="uq_sector_relevance_text_sector_model",
+        ),
+        CheckConstraint("relevance_score >= 0 AND relevance_score <= 1", name="sector_relevance_bounds"),
+        Index("ix_sector_relevance_sector", "sector_code"),
+    )
+
+
+class SectorPrediction(TimestampMixin, Base):
+    __tablename__ = "sector_predictions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    strategy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False
+    )
+    sector_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    prediction_time: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
+    horizon_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    predicted_return: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
+    predicted_direction: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    confidence_score: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("horizon_hours > 0", name="sector_prediction_horizon_positive"),
+        CheckConstraint(
+            "confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 1)",
+            name="sector_prediction_confidence_bounds",
+        ),
+        Index("ix_sector_predictions_strategy_time", "strategy_id", "prediction_time"),
+    )
+
 class BacktestRun(TimestampMixin, Base):
     __tablename__ = "backtest_runs"
 
@@ -183,6 +324,9 @@ class ForwardTestRun(TimestampMixin, Base):
     strategy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False
     )
+    baseline_backtest_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("backtest_runs.id", ondelete="SET NULL"), nullable=True
+    )
     triggered_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -190,22 +334,29 @@ class ForwardTestRun(TimestampMixin, Base):
         SAEnum(RunStatus, name="run_status"), nullable=False, server_default=RunStatus.PENDING.value
     )
     environment: Mapped[str] = mapped_column(String(32), nullable=False, server_default="paper")
-    forward_start: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
-    forward_end: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
-    observed_return_pct: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
-    observed_max_drawdown_pct: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
-    pass_criteria: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    pass_status: Mapped[ValidationStatus] = mapped_column(
-        SAEnum(ValidationStatus, name="validation_status"),
+    start_date: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_date: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
+    realized_return: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
+    realized_sharpe: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    drawdown: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    divergence_from_backtest: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    rolling_information_coefficient: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    eligibility_status: Mapped[EligibilityStatus] = mapped_column(
+        SAEnum(EligibilityStatus, name="eligibility_status"),
         nullable=False,
-        server_default=ValidationStatus.PENDING.value,
+        server_default=EligibilityStatus.PENDING_FORWARD_TEST.value,
     )
+    pass_criteria: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        CheckConstraint("forward_start < forward_end", name="forward_time_order"),
+        CheckConstraint("start_date < end_date", name="forward_time_order"),
+        CheckConstraint(
+            "rolling_information_coefficient IS NULL OR (rolling_information_coefficient >= -1 AND rolling_information_coefficient <= 1)",
+            name="forward_rolling_ic_bounds",
+        ),
     )
 
 
@@ -216,13 +367,17 @@ class Signal(TimestampMixin, Base):
     strategy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False
     )
+    source_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("text_events.id", ondelete="SET NULL"), nullable=True
+    )
     backtest_run_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("backtest_runs.id", ondelete="SET NULL"), nullable=True
     )
     forward_test_run_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("forward_test_runs.id", ondelete="SET NULL"), nullable=True
     )
-    asset_symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_asset: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    target_sector: Mapped[str | None] = mapped_column(String(64), nullable=True)
     signal_direction: Mapped[str] = mapped_column(String(16), nullable=False)
     signal_strength: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False)
     generation_method: Mapped[str] = mapped_column(String(160), nullable=False)
@@ -241,12 +396,16 @@ class Signal(TimestampMixin, Base):
     uncertainty_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     expires_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    suppressed_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suppression_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
             "backtest_run_id IS NULL OR forward_test_run_id IS NULL",
             name="signal_single_test_source",
+        ),
+        CheckConstraint(
+            "target_asset IS NOT NULL OR target_sector IS NOT NULL",
+            name="signal_target_required",
         ),
         CheckConstraint(
             "information_coefficient >= -1 AND information_coefficient <= 1",
@@ -297,41 +456,31 @@ class SignalValidationMetadata(TimestampMixin, Base):
     )
 
 
-class SentimentEvent(TimestampMixin, Base):
-    __tablename__ = "sentiment_events"
+class Opportunity(TimestampMixin, Base):
+    __tablename__ = "opportunities"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    asset_symbol: Mapped[str] = mapped_column(String(32), nullable=False)
-    event_time: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
-    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    headline: Mapped[str | None] = mapped_column(Text, nullable=True)
-    raw_sentiment_score: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
-    normalized_sentiment_score: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
-    event_confidence_score: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
-    event_information_coefficient: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
-    validation_status: Mapped[ValidationStatus] = mapped_column(
-        SAEnum(ValidationStatus, name="validation_status"), nullable=False
+    signal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("signals.id", ondelete="CASCADE"), nullable=False, unique=True
     )
-    regime_context: Mapped[RegimeType] = mapped_column(SAEnum(RegimeType, name="regime_type"), nullable=False)
-    event_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
+    strategy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[OpportunityStatus] = mapped_column(
+        SAEnum(OpportunityStatus, name="opportunity_status"),
+        nullable=False,
+        server_default=OpportunityStatus.CANDIDATE.value,
+    )
+    what_was_observed: Mapped[str] = mapped_column(Text, nullable=False)
+    what_was_inferred: Mapped[str] = mapped_column(Text, nullable=False)
+    uncertainty: Mapped[str] = mapped_column(Text, nullable=False)
+    published_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suppression_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
-        CheckConstraint(
-            "raw_sentiment_score >= -1 AND raw_sentiment_score <= 1",
-            name="sentiment_raw_bounds",
-        ),
-        CheckConstraint(
-            "normalized_sentiment_score >= -1 AND normalized_sentiment_score <= 1",
-            name="sentiment_norm_bounds",
-        ),
-        CheckConstraint(
-            "event_confidence_score IS NULL OR (event_confidence_score >= 0 AND event_confidence_score <= 1)",
-            name="sentiment_confidence_bounds",
-        ),
-        Index("ix_sentiment_events_asset_time", "asset_symbol", "event_time"),
+        Index("ix_opportunities_status_published", "status", "published_at"),
     )
-
 
 class AssetRelationship(TimestampMixin, Base):
     __tablename__ = "asset_relationships"
@@ -353,7 +502,7 @@ class AssetRelationship(TimestampMixin, Base):
     )
     observation_count: Mapped[int] = mapped_column(Integer, nullable=False)
     validated_at: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    suppressed_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suppression_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         UniqueConstraint(
@@ -487,10 +636,10 @@ class BotSetting(TimestampMixin, Base):
         server_default=BotActivationStatus.DISABLED.value,
     )
     requires_forward_test_pass: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
-    forward_test_gate_status: Mapped[ValidationStatus] = mapped_column(
-        SAEnum(ValidationStatus, name="validation_status"),
+    forward_test_gate_status: Mapped[EligibilityStatus] = mapped_column(
+        SAEnum(EligibilityStatus, name="eligibility_status"),
         nullable=False,
-        server_default=ValidationStatus.PENDING.value,
+        server_default=EligibilityStatus.PENDING_FORWARD_TEST.value,
     )
     strategy_eligibility_status_snapshot: Mapped[EligibilityStatus] = mapped_column(
         SAEnum(EligibilityStatus, name="eligibility_status"),
@@ -521,7 +670,7 @@ class BotSetting(TimestampMixin, Base):
             name="bot_drawdown_bounds",
         ),
         CheckConstraint(
-            "activation_status <> 'autonomous' OR requires_forward_test_pass = false OR forward_test_gate_status = 'passed'",
+            "activation_status <> 'autonomous' OR requires_forward_test_pass = false OR forward_test_gate_status = 'eligible'",
             name="bot_autonomous_requires_forward_pass",
         ),
         CheckConstraint(
@@ -573,6 +722,9 @@ class ModelDegradationTracking(TimestampMixin, Base):
     strategy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False
     )
+    signal_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("signals.id", ondelete="SET NULL"), nullable=True
+    )
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)
     measurement_time: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
     metric_name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -585,6 +737,8 @@ class ModelDegradationTracking(TimestampMixin, Base):
         nullable=False,
         server_default=DegradationStatus.HEALTHY.value,
     )
+    suspension_recommended: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    suspension_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_blocking: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     recommended_action: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -592,11 +746,35 @@ class ModelDegradationTracking(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint(
             "strategy_id",
+            "signal_id",
             "model_version",
             "measurement_time",
             "metric_name",
             name="uq_model_degradation_snapshot",
         ),
         Index("ix_model_degradation_strategy_time", "strategy_id", "measurement_time"),
+        Index("ix_model_degradation_signal_time", "signal_id", "measurement_time"),
     )
 
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    action: Mapped[AuditAction] = mapped_column(SAEnum(AuditAction, name="audit_action"), nullable=False)
+    change_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    before_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    after_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    context: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_audit_logs_entity", "entity_type", "entity_id", "created_at"),
+        Index("ix_audit_logs_actor", "actor_user_id", "created_at"),
+    )

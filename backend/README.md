@@ -1,65 +1,35 @@
-﻿# Backend Scaffold
+# Backend Schema Scaffold
 
-This folder contains a production-style backend scaffold for the **Cross-Asset Sentiment-Driven Trading Platform**.
+This backend contains PostgreSQL-first schema artifacts for the **Cross-Asset Sentiment-Driven Systematic Trading Platform**.
 
-## Layered structure
+## Schema files
 
-- `app/api/v1/endpoints/`: route handlers grouped by domain
-- `app/services/`: business-domain service stubs
-- `app/schemas/`: request/response and contract models
-- `app/repositories/`: persistence boundary stubs
-- `app/models/`: domain model placeholders
-- `app/db/`: SQLAlchemy base/session and existing schema models
-- `app/core/`: config, security, logging, and exceptions
-- `app/utils/`: cross-cutting utility helpers
+- `app/db/base.py`: SQLAlchemy base + audit timestamp mixin.
+- `app/db/enums.py`: shared enum definitions.
+- `app/db/models.py`: normalized ORM models for trading lifecycle, NLP/ML outputs, validation, and bot governance.
+- `migrations/versions/20260309_0001_initial_schema.sql`: initial schema.
+- `migrations/versions/20260312_0002_schema_expansion.sql`: incremental expansion for market/text/sector/opportunity/audit and stronger gating.
 
-## Supported backend modules
+## Coverage highlights
 
-- authentication
-- users and profiles
-- strategies
-- historical data ingestion
-- sentiment events
-- sector relevance and propagation
-- signals
-- signal validation
-- backtesting
-- forward testing
-- opportunities
-- portfolios
-- trades and positions
-- bot control
-- model degradation monitoring
-- system health and logging
+- Identity & suitability: users, user_profiles, risk_suitability.
+- Strategy lifecycle: strategies, backtest_runs, forward_test_runs, strategy eligibility fields.
+- Data ingestion: market_data_records, text_events, sentiment_events.
+- NLP/ML outputs: sector_relevance_scores, sector_predictions, signals.
+- Validation layer: signal_validation_metadata, opportunity_feed_eligible_signals view.
+- Opportunity & execution: opportunities, portfolios, positions, trades.
+- Autonomous bot governance: bot_settings, bot_execution_logs.
+- Safety monitoring: model_degradation_tracking with strategy/signal suspension flags.
+- Auditability: audit_logs.
 
-## Architectural guardrails already scaffolded
+## Gating design
 
-- Signals domain includes `validation_status` and `information_coefficient` fields (`app/schemas/signal.py`).
-- Forward-test gating hooks exist for autonomous eligibility (`app/schemas/bot_control.py`, `app/services/bot_control_service.py`, `app/models/strategy.py`).
-- Model degradation interfaces exist before autonomous bot completion (`app/services/model_degradation_service.py`, `app/schemas/model_degradation.py`).
-- Audit location for user-facing confidence/risk/recommendation behavior is easy to find in:
-  - `app/services/signal_service.py`
-  - `app/services/opportunity_feed_service.py`
-  - `app/services/bot_control_service.py`
-  - `app/utils/confidence_audit.py`
+- Opportunities are insertion-gated by DB trigger (`enforce_opportunity_signal_gate`) to ensure only statistically valid signals (passed validation + IC threshold) are eligible.
+- Bot autonomous mode is schema-gated by constraints requiring eligible forward-test status and active degradation monitor.
+- Degradation records can flag strategy or strategy+signal scope, and the opportunity feed view excludes active suspensions.
 
-## Existing preserved assets
+## Assumptions
 
-- `app/db/models.py`
-- `app/db/enums.py`
-- `migrations/versions/20260309_0001_initial_schema.sql`
-
-## Quick start
-
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-## Notes
-
-- This scaffold intentionally excludes business logic implementation.
-- Existing non-backend quant modules remain untouched.
+- PostgreSQL with `pgcrypto` (`gen_random_uuid()`).
+- Existing deployments apply migrations in order (`0001` then `0002`).
+- `updated_at` default columns are present; update triggers can be added later if strict automatic timestamp mutation is required.

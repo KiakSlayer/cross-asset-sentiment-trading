@@ -1,94 +1,102 @@
-import { LineTrendChart } from "@/components/charts/line-trend-chart";
-import { ExplainerCard } from "@/components/ui/explainer-card";
-import { MetricCard } from "@/components/ui/metric-card";
+import { OpportunityCard } from "@/components/ui/opportunity-card";
+import { BotStatusCard } from "@/components/ui/bot-status-card";
 import { PageHeader } from "@/components/ui/page-header";
-import { RecommendationCard } from "@/components/ui/recommendation-card";
-import { SectionCard } from "@/components/ui/section-card";
+import { PortfolioSummaryCard } from "@/components/ui/portfolio-summary-card";
+import { SectionBlock } from "@/components/ui/section-block";
+import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { TableCard } from "@/components/ui/table-card";
+import { formatDateTime } from "@/lib/format";
 import {
-  buildConfidenceDisplay,
-  buildRecommendationExplanation,
-  getEligibleOpportunities,
-} from "@/lib/gating";
-import {
+  dashboardBot,
+  dashboardPortfolio,
   dashboardStats,
-  equityCurveData,
-  OPPORTUNITY_IC_THRESHOLD,
-  opportunitySignals,
+  marketPulse,
+  recentActivity,
+  topOpportunities,
 } from "@/lib/mock-data";
 
 export default function DashboardPage() {
-  const eligibleSignals = getEligibleOpportunities(opportunitySignals, OPPORTUNITY_IC_THRESHOLD);
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="Quick overview of what the system observed, what it inferred, and how much uncertainty is present before any action."
+        description="A guided overview of your portfolio, market pulse, opportunities, and bot status."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {dashboardStats.map((item) => (
-          <MetricCard key={item.label} label={item.label} value={item.value} caption={item.caption} />
+          <StatCard key={item.label} label={item.label} value={item.value} subtitle={item.subtitle} />
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <SectionCard
-            title="Equity trend (demo)"
-            description="Simple view of account value over recent weeks in paper mode."
-          >
-            <LineTrendChart data={equityCurveData} formatMode="currency" />
-          </SectionCard>
-        </div>
-        <ExplainerCard
-          title="Why this is beginner-safe"
-          body="Only opportunities that pass quality checks are shown. Autonomous mode stays locked until forward testing and model health checks are both approved."
+      <div className="grid gap-4 xl:grid-cols-2">
+        <PortfolioSummaryCard
+          currentValue={dashboardPortfolio.currentValue}
+          dailyPnl={dashboardPortfolio.dailyPnl}
+          cash={dashboardPortfolio.cash}
+        />
+        <BotStatusCard
+          status={dashboardBot.status}
+          mode={dashboardBot.mode}
+          openPositions={dashboardBot.openPositions}
+          todayActions={dashboardBot.todayActions}
+          cumulativePnl={dashboardBot.cumulativePnl}
         />
       </div>
 
-      <SectionCard
-        title="Top opportunity explanations"
-        description="Each recommendation uses plain language and includes uncertainty."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          {eligibleSignals.slice(0, 2).map((signal) => {
-            const recommendation = buildRecommendationExplanation(signal);
-            const confidence = buildConfidenceDisplay(signal);
+      <div className="grid gap-4 xl:grid-cols-3">
+        <SectionBlock
+          title="Market pulse"
+          description="How major sectors look right now based on mock event signals."
+        >
+          <div className="space-y-2">
+            {marketPulse.map((item) => (
+              <div key={item.sector} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-slate-900">{item.sector}</p>
+                  <StatusBadge status={item.sentiment} />
+                </div>
+                <p className="mt-1 text-sm text-slate-700">{item.note}</p>
+              </div>
+            ))}
+          </div>
+        </SectionBlock>
 
-            if (!recommendation) {
-              return (
-                <article
-                  key={signal.id}
-                  className="rounded-2xl border border-amber-200 bg-amber-50 p-4"
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="font-semibold text-slate-900">{signal.assetSymbol}</p>
-                    <StatusBadge status="suppressed" />
-                  </div>
-                  <p className="text-sm text-slate-700">
-                    Recommendation hidden because audit evidence is incomplete.
-                  </p>
-                </article>
-              );
-            }
-
-            return (
-              <RecommendationCard
-                key={signal.id}
-                title={`${signal.assetSymbol} suggestion`}
-                recommendation={recommendation}
-                note={
-                  confidence.label
-                    ? `${confidence.label} (${Math.round((confidence.score ?? 0) * 100)}%)`
-                    : confidence.suppressedReason ?? "Confidence note hidden."
-                }
-              />
-            );
-          })}
+        <div className="xl:col-span-2">
+          <SectionBlock
+            title="Top opportunities"
+            description="Validated ideas with Suggested Action, Confidence, and Risk Level."
+          >
+            <div className="grid gap-4 lg:grid-cols-2">
+              {topOpportunities.slice(0, 2).map((item) => (
+                <OpportunityCard key={item.id} item={item} />
+              ))}
+            </div>
+          </SectionBlock>
         </div>
-      </SectionCard>
+      </div>
+
+      <TableCard
+        title="Recent activity"
+        description="Latest platform actions across manual, assisted, and bot modes."
+        hasRows={recentActivity.length > 0}
+      >
+        <div className="space-y-2">
+          {recentActivity.map((item) => (
+            <div
+              key={item.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-slate-900">{item.message}</p>
+                <p className="text-xs text-slate-500">{formatDateTime(item.time)}</p>
+              </div>
+              <StatusBadge status={item.mode} />
+            </div>
+          ))}
+        </div>
+      </TableCard>
     </div>
   );
 }

@@ -5,9 +5,9 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Strategy Setup", href: "/strategy-setup" },
+  { label: "Strategy Lab", href: "/strategy-lab" },
   { label: "Backtest Results", href: "/backtest-results" },
-  { label: "Forward Test Results", href: "/forward-test-results" },
+  { label: "Forward Test", href: "/forward-test" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Portfolio", href: "/portfolio" },
   { label: "Trade History", href: "/trade-history" },

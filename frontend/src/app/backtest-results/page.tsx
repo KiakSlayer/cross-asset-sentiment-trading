@@ -1,104 +1,69 @@
 import { LineTrendChart } from "@/components/charts/line-trend-chart";
-import { DataTable, type TableColumn } from "@/components/ui/data-table";
-import { ExplainerCard } from "@/components/ui/explainer-card";
+import { ChartCard } from "@/components/ui/chart-card";
 import { PageHeader } from "@/components/ui/page-header";
-import { RecommendationCard } from "@/components/ui/recommendation-card";
-import { SectionCard } from "@/components/ui/section-card";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDateTime, formatPct } from "@/lib/format";
-import { backtestRuns } from "@/lib/mock-data";
-import type { BacktestSummary } from "@/types/domain";
-
-const columns: TableColumn<BacktestSummary>[] = [
-  {
-    key: "strategy",
-    header: "Strategy",
-    render: (row) => row.strategyName,
-  },
-  {
-    key: "status",
-    header: "Run status",
-    render: (row) => <StatusBadge status={row.runStatus} />,
-  },
-  {
-    key: "validation",
-    header: "Check status",
-    render: (row) => <StatusBadge status={row.validationStatus} />,
-  },
-  {
-    key: "return",
-    header: "Total return",
-    render: (row) => formatPct(row.totalReturnPct),
-  },
-  {
-    key: "drawdown",
-    header: "Largest drop",
-    render: (row) => formatPct(row.maxDrawdownPct),
-  },
-  {
-    key: "window",
-    header: "Test windows",
-    render: (row) => row.walkForwardWindows,
-  },
-  {
-    key: "ended",
-    header: "Completed",
-    render: (row) => formatDateTime(row.endedAt),
-  },
-];
+import { SectionBlock } from "@/components/ui/section-block";
+import { StatCard } from "@/components/ui/stat-card";
+import { TableCard } from "@/components/ui/table-card";
+import { WhyThisMattersCard } from "@/components/ui/why-this-matters-card";
+import {
+  backtestMetrics,
+  backtestTradeSummary,
+  benchmarkGrowthData,
+  portfolioGrowthData,
+} from "@/lib/mock-data";
 
 export default function BacktestResultsPage() {
-  const chartData = backtestRuns.map((run) => ({
-    label: run.id,
-    value: run.totalReturnPct,
-  }));
-
-  const latestPassed = backtestRuns.find((run) => run.validationStatus === "passed");
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Strategy test results"
-        description="Historical strategy tests use rolling windows to check consistency before moving to forward testing."
+        title="Backtest Results"
+        description="Review strategy test performance versus benchmark using simple metrics."
       />
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <SectionCard
-            title="Performance by test run"
-            description="Simple view of how each historical test performed."
-          >
-            <LineTrendChart data={chartData} formatMode="percent" />
-          </SectionCard>
-        </div>
-        <ExplainerCard
-          title="Why this matters"
-          body="A good historical test is helpful, but autonomous mode still stays locked until forward testing passes."
-        />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {backtestMetrics.map((item) => (
+          <StatCard key={item.label} label={item.label} value={item.value} subtitle={item.subtitle} />
+        ))}
       </div>
 
-      {latestPassed ? (
-        <RecommendationCard
-          title="What this suggests"
-          recommendation={{
-            observed: `Latest passed run returned ${formatPct(latestPassed.totalReturnPct)} with a largest drop of ${formatPct(latestPassed.maxDrawdownPct)}.`,
-            inferred:
-              "Historical behavior looks stable enough to continue paper forward testing.",
-            uncertainty:
-              "Real market behavior can differ, so this is not a guarantee of future results.",
-          }}
-          note="Continue forward testing before enabling autonomous mode."
-        />
-      ) : null}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard
+          title="Portfolio growth"
+          description="How the strategy test value changed over time."
+          hasData={portfolioGrowthData.length > 0}
+        >
+          <LineTrendChart data={portfolioGrowthData} formatMode="currency" />
+        </ChartCard>
 
-      <SectionCard title="Test run log" description="Detailed status of each historical strategy test.">
-        <DataTable
-          rows={backtestRuns}
-          getRowKey={(row) => row.id}
-          columns={columns}
-          emptyMessage="No strategy test runs are available yet."
-        />
-      </SectionCard>
+        <ChartCard
+          title="Benchmark comparison"
+          description="How the benchmark moved over the same period."
+          hasData={benchmarkGrowthData.length > 0}
+        >
+          <LineTrendChart data={benchmarkGrowthData} formatMode="currency" color="#0f766e" />
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <TableCard
+          title="Trade summary"
+          description="Simple summary of strategy test trading behavior."
+          hasRows={backtestTradeSummary.length > 0}
+        >
+          <div className="space-y-2">
+            {backtestTradeSummary.map((row) => (
+              <div key={row.metric} className="flex items-center justify-between rounded-lg bg-slate-50 p-3 text-sm">
+                <span className="text-slate-600">{row.metric}</span>
+                <span className="font-semibold text-slate-900">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </TableCard>
+
+        <SectionBlock title="What this means" description="A plain-language readout of the strategy test.">
+          <WhyThisMattersCard text="The strategy outperformed the benchmark in this test window, but it should still pass Forward Test before any bot activation." />
+        </SectionBlock>
+      </div>
     </div>
   );
 }

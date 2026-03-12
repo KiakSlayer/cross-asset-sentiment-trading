@@ -12,6 +12,8 @@ export type RegimeType =
   | "stressed"
   | "unknown";
 
+export type ModeType = "manual" | "assisted" | "bot";
+
 export interface RecommendationExplanation {
   observed: string;
   inferred: string;
@@ -118,4 +120,46 @@ export interface RiskLabelDisplay {
   label: string | null;
   auditBasis: string | null;
   suppressedReason: string | null;
+}
+
+export interface DashboardActivity {
+  id: string;
+  time: string;
+  message: string;
+  mode: ModeType;
+}
+
+export interface OpportunityItem {
+  id: string;
+  sector: string;
+  etf: string;
+  suggestedAction: string;
+  confidence: "low" | "medium" | "high";
+  riskLevel: "low" | "medium" | "high";
+  whatHappened: string;
+  whyThisMatters: string;
+  uncertaintyNote: string;
+  validationStatus: ValidationStatus;
+}
+
+export interface HoldingRow {
+  symbol: string;
+  sector: string;
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  riskLevel: "low" | "medium" | "high";
+}
+
+export interface TradeHistoryRow {
+  id: string;
+  timestamp: string;
+  symbol: string;
+  side: "buy" | "sell";
+  quantity: number;
+  price: number;
+  mode: ModeType;
+  status: "filled" | "canceled" | "rejected";
 }

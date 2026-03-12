@@ -69,3 +69,28 @@ class DegradationStatus(str, Enum):
     WARNING = "warning"
     DEGRADED = "degraded"
     HALTED = "halted"
+
+
+class TextSourceType(str, Enum):
+    NEWS = "news"
+    TWEET = "tweet"
+    MACRO = "macro"
+    FILING = "filing"
+    BLOG = "blog"
+    OTHER = "other"
+
+
+class OpportunityStatus(str, Enum):
+    CANDIDATE = "candidate"
+    PUBLISHED = "published"
+    EXPIRED = "expired"
+    EXECUTED = "executed"
+    SUPPRESSED = "suppressed"
+
+
+class AuditAction(str, Enum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+    STATUS_CHANGE = "status_change"
+    BOT_GATING = "bot_gating"

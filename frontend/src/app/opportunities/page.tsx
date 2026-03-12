@@ -1,139 +1,88 @@
-import { DataTable, type TableColumn } from "@/components/ui/data-table";
-import { ExplainerCard } from "@/components/ui/explainer-card";
-import { MetricCard } from "@/components/ui/metric-card";
-import { PageHeader } from "@/components/ui/page-header";
-import { RecommendationCard } from "@/components/ui/recommendation-card";
-import { SectionCard } from "@/components/ui/section-card";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDateTime } from "@/lib/format";
-import {
-  buildConfidenceDisplay,
-  buildRecommendationExplanation,
-  getEligibleOpportunities,
-} from "@/lib/gating";
-import { OPPORTUNITY_IC_THRESHOLD, opportunitySignals } from "@/lib/mock-data";
-import type { OpportunitySignal } from "@/types/domain";
+"use client";
 
-const columns: TableColumn<OpportunitySignal>[] = [
-  {
-    key: "asset",
-    header: "Asset",
-    render: (row) => <span className="font-semibold text-slate-900">{row.assetSymbol}</span>,
-  },
-  {
-    key: "quality",
-    header: "Signal quality score",
-    render: (row) => `${row.informationCoefficient.toFixed(2)} (minimum ${row.icThreshold.toFixed(2)})`,
-  },
-  {
-    key: "validation",
-    header: "Check status",
-    render: (row) => <StatusBadge status={row.validationStatus} />,
-  },
-  {
-    key: "confidence",
-    header: "Confidence",
-    render: (row) => {
-      const confidence = buildConfidenceDisplay(row);
-      return confidence.label
-        ? `${confidence.label} (${Math.round((confidence.score ?? 0) * 100)}%)`
-        : confidence.suppressedReason;
-    },
-  },
-  {
-    key: "updated",
-    header: "Updated",
-    render: (row) => formatDateTime(row.generatedAt),
-  },
-];
+import { useMemo, useState } from "react";
+
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar } from "@/components/ui/filter-bar";
+import { OpportunityCard } from "@/components/ui/opportunity-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { WarningBanner } from "@/components/ui/warning-banner";
+import { opportunityFilterOptions, topOpportunities } from "@/lib/mock-data";
 
 export default function OpportunitiesPage() {
-  const eligible = getEligibleOpportunities(opportunitySignals, OPPORTUNITY_IC_THRESHOLD);
+  const [sector, setSector] = useState("all");
+  const [confidence, setConfidence] = useState("all");
+  const [risk, setRisk] = useState("all");
+
+  const filtered = useMemo(() => {
+    return topOpportunities.filter((item) => {
+      const sectorMatch = sector === "all" || item.sector === sector;
+      const confidenceMatch = confidence === "all" || item.confidence === confidence;
+      const riskMatch = risk === "all" || item.riskLevel === risk;
+      return sectorMatch && confidenceMatch && riskMatch && item.validationStatus === "passed";
+    });
+  }, [confidence, risk, sector]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Opportunities"
-        description="This feed only shows signals that passed required checks and cleared the configured quality threshold."
+        description="Validated opportunities with Suggested Action, Confidence, Risk Level, and plain-language context."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Signals scanned"
-          value={String(opportunitySignals.length)}
-          caption="All incoming signals before filtering"
-        />
-        <MetricCard
-          label="Feed eligible"
-          value={String(eligible.length)}
-          caption="Only passed signals above quality threshold"
-        />
-        <MetricCard
-          label="Quality threshold"
-          value={OPPORTUNITY_IC_THRESHOLD.toFixed(2)}
-          caption="Configured minimum score"
-        />
-        <MetricCard
-          label="Suppressed labels"
-          value={String(
-            eligible.filter((signal) => !buildConfidenceDisplay(signal).label).length,
-          )}
-          caption="Hidden when audit evidence is missing"
-        />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Validated opportunities" value={String(filtered.length)} subtitle="Currently visible" />
+        <StatCard label="Confidence focus" value={confidence === "all" ? "All" : confidence} subtitle="Filter" />
+        <StatCard label="Risk focus" value={risk === "all" ? "All" : risk} subtitle="Filter" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <SectionCard title="Eligible opportunities" description="Filtered output with auditable notes.">
-            <DataTable
-              rows={eligible}
-              getRowKey={(row) => row.id}
-              columns={columns}
-              emptyMessage="No opportunities are ready right now."
-            />
-          </SectionCard>
-        </div>
-        <ExplainerCard
-          title="Why this matters"
-          body="An item appears here only if required checks pass and quality stays above the configured threshold. Confidence and suggestions are hidden when audit evidence is missing."
-        />
-      </div>
+      <FilterBar
+        filters={[
+          {
+            id: "sector",
+            label: "Sector",
+            value: sector,
+            options: opportunityFilterOptions.sector.map((item) => ({ label: item, value: item })),
+          },
+          {
+            id: "confidence",
+            label: "Confidence",
+            value: confidence,
+            options: opportunityFilterOptions.confidence.map((item) => ({ label: item, value: item })),
+          },
+          {
+            id: "risk",
+            label: "Risk Level",
+            value: risk,
+            options: opportunityFilterOptions.risk.map((item) => ({ label: item, value: item })),
+          },
+        ]}
+        onChange={(id, value) => {
+          if (id === "sector") setSector(value);
+          if (id === "confidence") setConfidence(value);
+          if (id === "risk") setRisk(value);
+        }}
+      />
 
-      <SectionCard
-        title="Opportunity cards"
-        description="Each card explains what happened and why it matters in plain language."
-      >
+      <WarningBanner
+        title="Validation gate"
+        message="Only opportunities with passed validation are shown in this feed."
+        tone="info"
+      />
+
+      {filtered.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          {eligible.map((signal) => {
-            const recommendation = buildRecommendationExplanation(signal);
-            if (!recommendation) {
-              return (
-                <article
-                  key={signal.id}
-                  className="rounded-2xl border border-amber-200 bg-amber-50 p-4"
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="font-semibold text-slate-900">{signal.assetSymbol}</p>
-                    <StatusBadge status="suppressed" />
-                  </div>
-                  <p className="text-sm text-slate-700">
-                    Suggested action is hidden because auditable evidence is incomplete.
-                  </p>
-                </article>
-              );
-            }
-
-            return (
-              <RecommendationCard
-                key={signal.id}
-                title={`${signal.assetSymbol} opportunity`}
-                recommendation={recommendation}
-                note={signal.recommendationText ?? "Wait for clearer confirmation."}
-              />
-            );
-          })}
+          {filtered.map((item) => (
+            <OpportunityCard key={item.id} item={item} />
+          ))}
         </div>
-      </SectionCard>
+      ) : (
+        <EmptyState
+          title="No opportunities match your filters"
+          description="Try broadening sector, confidence, or risk level filters."
+        />
+      )}
     </div>
   );
 }

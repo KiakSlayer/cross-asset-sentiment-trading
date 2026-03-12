@@ -1,75 +1,108 @@
-import { DataTable, type TableColumn } from "@/components/ui/data-table";
-import { ExplainerCard } from "@/components/ui/explainer-card";
-import { PageHeader } from "@/components/ui/page-header";
-import { SectionCard } from "@/components/ui/section-card";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { formatCurrency, formatDateTime, formatNumber } from "@/lib/format";
-import { tradeHistory } from "@/lib/mock-data";
-import type { TradeRecord } from "@/types/domain";
+"use client";
 
-const columns: TableColumn<TradeRecord>[] = [
-  {
-    key: "time",
-    header: "Time",
-    render: (row) => formatDateTime(row.timestamp),
-  },
-  {
-    key: "symbol",
-    header: "Asset",
-    render: (row) => <span className="font-semibold text-slate-900">{row.symbol}</span>,
-  },
-  {
-    key: "side",
-    header: "Side",
-    render: (row) => <span className="capitalize">{row.side}</span>,
-  },
-  {
-    key: "qty",
-    header: "Quantity",
-    render: (row) => formatNumber(row.quantity),
-  },
-  {
-    key: "price",
-    header: "Price",
-    render: (row) => formatCurrency(row.price),
-  },
-  {
-    key: "notional",
-    header: "Trade Value",
-    render: (row) => formatCurrency(row.notionalValue),
-  },
-  {
-    key: "status",
-    header: "Status",
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
+import { useMemo, useState } from "react";
+
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar } from "@/components/ui/filter-bar";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { TableCard } from "@/components/ui/table-card";
+import { formatCurrency, formatDateTime, formatNumber } from "@/lib/format";
+import { tradeHistoryRows } from "@/lib/mock-data";
 
 export default function TradeHistoryPage() {
+  const [mode, setMode] = useState("all");
+  const [symbol, setSymbol] = useState("all");
+
+  const symbols = Array.from(new Set(tradeHistoryRows.map((row) => row.symbol)));
+
+  const filteredRows = useMemo(() => {
+    return tradeHistoryRows.filter((row) => {
+      const modeMatch = mode === "all" || row.mode === mode;
+      const symbolMatch = symbol === "all" || row.symbol === symbol;
+      return modeMatch && symbolMatch;
+    });
+  }, [mode, symbol]);
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Trade History"
-        description="Timeline of recent paper-mode orders with clear status labels and simple wording."
+        description="Review executed and canceled trades with mode badges: manual, assisted, and bot."
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <SectionCard title="Recent orders" description="Most recent activity from the demo account.">
-            <DataTable
-              rows={tradeHistory}
-              getRowKey={(row) => row.id}
-              columns={columns}
-              emptyMessage="No trade history is available yet."
-            />
-          </SectionCard>
+      <FilterBar
+        filters={[
+          {
+            id: "mode",
+            label: "Mode",
+            value: mode,
+            options: ["all", "manual", "assisted", "bot"].map((item) => ({ label: item, value: item })),
+          },
+          {
+            id: "symbol",
+            label: "Symbol",
+            value: symbol,
+            options: ["all", ...symbols].map((item) => ({ label: item, value: item })),
+          },
+        ]}
+        onChange={(id, value) => {
+          if (id === "mode") setMode(value);
+          if (id === "symbol") setSymbol(value);
+        }}
+      />
+
+      <TableCard
+        title="Trades"
+        description="Most recent trade events across all control modes."
+        hasRows={filteredRows.length > 0}
+        emptyTitle="No trades for selected filters"
+        emptyDescription="Try choosing a different mode or symbol."
+      >
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead>
+              <tr>
+                {[
+                  "Time",
+                  "Symbol",
+                  "Side",
+                  "Quantity",
+                  "Price",
+                  "Notional",
+                  "Mode",
+                  "Status",
+                ].map((header) => (
+                  <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredRows.map((row) => (
+                <tr key={row.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-3 text-sm text-slate-700">{formatDateTime(row.timestamp)}</td>
+                  <td className="px-3 py-3 text-sm font-semibold text-slate-900">{row.symbol}</td>
+                  <td className="px-3 py-3 text-sm text-slate-700"><StatusBadge status={row.side} /></td>
+                  <td className="px-3 py-3 text-sm text-slate-700">{formatNumber(row.quantity)}</td>
+                  <td className="px-3 py-3 text-sm text-slate-700">{formatCurrency(row.price)}</td>
+                  <td className="px-3 py-3 text-sm text-slate-700">{formatCurrency(row.quantity * row.price)}</td>
+                  <td className="px-3 py-3 text-sm text-slate-700"><StatusBadge status={row.mode} /></td>
+                  <td className="px-3 py-3 text-sm text-slate-700"><StatusBadge status={row.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <ExplainerCard
-          title="How to read this"
-          body="Filled means the trade executed. Canceled means it was stopped before execution. Rejected means the risk rules blocked it."
+      </TableCard>
+
+      {!filteredRows.length ? (
+        <EmptyState
+          title="No matching trades"
+          description="Once new trades arrive, they will appear here automatically."
         />
-      </div>
+      ) : null}
     </div>
   );
 }
-
